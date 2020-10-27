@@ -34,7 +34,7 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		}
 	case 0x1: // 1nnn
 		// JP addr: The interpreter sets the program counter to nnn
-		chip8.PC = instruction & 0x0FFF
+		chip8.PC = instruction&0x0FFF - 2
 	case 0x2: // 2nnn
 		// CALL addr: Call subroutine at nnn
 		chip8.stack[chip8.SP] = chip8.PC
@@ -126,16 +126,17 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		// DRW Vx, Vy, nibble: Display n-byte sprite starting
 		// at memory location I at (Vx, Vy), set VF = collision
 		y := instruction & 0x00F0 >> 4
-		sprites := int(instruction & 0x000F)
+		sprites := uint8(instruction & 0x000F)
 		location := chip8.I
-		for n := 0; n < sprites; n++ {
-			row := uint64(chip8.ram[location]) << (8 * (7 - y))
-			if chip8.display[x]&row != 0 {
+		shift := 56 - chip8.V[x]
+		for n := uint8(0); n < sprites; n++ {
+			row := uint64(chip8.ram[location]) & 0xFF << shift
+			fmt.Printf("row: %64b Vx: %4d\n", row, chip8.V[x])
+			if chip8.display[chip8.V[y]+n]&row != 0 {
 				chip8.V[0xF] = 1
 			}
-			chip8.display[x] ^= row
+			chip8.display[chip8.V[y]+n] ^= row
 			location++
-			y++
 		}
 
 	case 0xE:

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"os"
+	"time"
 
 	"github.com/hajimehoshi/ebiten"
 )
@@ -99,6 +101,11 @@ func (g *Game) Update() error {
 	instruction := g.getNextInstruction()
 	fmt.Printf("Opcode: %4X PC: %3X\n", instruction, g.PC)
 
+	if instruction == 0x1228 {
+		time.Sleep(5 * time.Second)
+		os.Exit(1)
+	}
+
 	g.execute(instruction)
 	if g.ST > 0 {
 		// buzz
@@ -110,6 +117,8 @@ func (g *Game) Update() error {
 		// time.Sleep(1 / 60 * time.Second)
 	}
 	g.PC += 2
+	fmt.Printf("%3X %X %v %v\n", g.I, g.SP, g.stack, g.V)
+	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
@@ -134,7 +143,7 @@ func main() {
 	game.load("./roms/IBM Logo.ch8")
 	ebiten.SetWindowSize(screenWidth*scale, screenHeight*scale)
 	ebiten.SetWindowTitle("Chip8 Emulator")
-	ebiten.SetMaxTPS(10)
+	// ebiten.SetMaxTPS(6)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
