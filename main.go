@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 )
 
 // Registers of the chip8 CPU
@@ -28,6 +27,7 @@ type Chip8 struct {
 	Registers
 	keyboard [16]bool
 	display  [32]uint64
+	// display  [64][32]bool
 	// storing the display image (64x32) by row in a uint64
 	// should let the array length change to 64x48 or 64x64
 	// should support 128x64 too
@@ -65,7 +65,6 @@ func (chip8 *Chip8) loadRom(path string) {
 		fmt.Println(err)
 	}
 
-	chip8.PC = 0x200
 	bytesRead, err := code.Read(chip8.ram[0x200:])
 	if bytesRead == 0 {
 		panic("The file contains nothing")
@@ -78,6 +77,7 @@ func (chip8 *Chip8) loadRom(path string) {
 
 func (chip8 *Chip8) load(path string) {
 	chip8.loadDigits()
+	chip8.PC = 0x200
 	chip8.loadRom(path)
 }
 
@@ -87,27 +87,26 @@ func (chip8 *Chip8) getNextInstruction() uint16 {
 	return byte1 | byte2
 }
 
-func main() {
-	chip8 := Chip8{}
-	// registers := Registers{PC: 0x200}
-	chip8.loadRom("./roms/IBM Logo.ch8")
+// func main() {
+// 	chip8 := Chip8{}
+// 	chip8.load("./roms/IBM Logo.ch8")
 
-	for {
-		time.Sleep(100 * time.Millisecond)
-		instruction := chip8.getNextInstruction()
-		fmt.Printf("Opcode: %4X PC: %3X\n", instruction, chip8.PC)
+// 	for {
+// 		// time.Sleep(10 * time.Millisecond)
+// 		instruction := chip8.getNextInstruction()
+// 		fmt.Printf("Opcode: %4X PC: %3X\n", instruction, chip8.PC)
 
-		chip8.execute(instruction)
-		if chip8.ST > 0 {
-			// buzz
-		} else {
-			// stop buzzing
-		}
-		for chip8.DT > 0 {
-			chip8.DT--
-			time.Sleep(1 / 60 * time.Second)
-		}
-		chip8.PC += 2
-		fmt.Println(chip8.display)
-	}
-}
+// 		chip8.execute(instruction)
+// 		if chip8.ST > 0 {
+// 			// buzz
+// 		} else {
+// 			// stop buzzing
+// 		}
+// 		for chip8.DT > 0 {
+// 			chip8.DT--
+// 			// time.Sleep(1 / 60 * time.Second)
+// 		}
+// 		chip8.PC += 2
+// 		// fmt.Println(chip8.display)
+// 	}
+// }

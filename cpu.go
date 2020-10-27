@@ -126,9 +126,9 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		// DRW Vx, Vy, nibble: Display n-byte sprite starting
 		// at memory location I at (Vx, Vy), set VF = collision
 		y := instruction & 0x00F0 >> 4
-		nibble := int(instruction & 0x000F)
+		sprites := int(instruction & 0x000F)
 		location := chip8.I
-		for n := 0; n < nibble; n++ {
+		for n := 0; n < sprites; n++ {
 			row := uint64(chip8.ram[location]) << (8 * (7 - y))
 			if chip8.display[x]&row != 0 {
 				chip8.V[0xF] = 1
@@ -137,6 +137,7 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			location++
 			y++
 		}
+
 	case 0xE:
 		switch instruction & 0xFF {
 		case 0x9E: // Ex9E
