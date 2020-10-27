@@ -49,7 +49,7 @@ func chip8() {
 	// 16-bit register I
 	// store memory address, 12 bits are usually used
 
-	var PC uint16
+	var PC uint16 = 0x200
 	// 16-bit PC program counter
 
 	var SP uint8
@@ -76,18 +76,22 @@ func chip8() {
 		fmt.Println(err)
 	}
 
-	bytes := make([]byte, 2)
-	for {
-		bytesRead, err := code.ReadAt(bytes, int64(2*PC))
-		if bytesRead == 0 {
-			return
-		}
-		if err != nil {
-			panic(err)
-		}
+	bytesRead, err := code.Read(ram[0x200:])
+	if bytesRead == 0 {
+		panic("The file contains nothing")
+	} else if err != nil {
+		panic(err)
+	}
 
-		fmt.Printf("%X\n", bytes)
-		instruction := uint16(bytes[0])<<8 | uint16(bytes[1])
+	fmt.Printf("%X\n", ram[0x200:0x202])
+
+	for {
+		time.Sleep(100 * time.Millisecond)
+		instruction := uint16(ram[PC])<<8 | uint16(ram[PC+1])
+		fmt.Printf("Opcode: %4X PC: %3X\n", instruction, PC)
+
+		// x is used a lot in opcodes
+		x := instruction & 0xF00 >> 8
 
 		// nnn or addr - A 12-bit value, the lowest 12 bits of the instruction
 		// n or nibble - A 4-bit value, the lowest 4 bits of the instruction
@@ -118,73 +122,76 @@ func chip8() {
 			PC = instruction & 0x0FFF
 		case 0x3: // 3xkk
 			// SE Vx, byte: Skip next instruction if Vx = kk
-			if V[instruction&0x0F00] == uint8(instruction&0x00FF) {
-				PC++
+			if V[x] == uint8(instruction&0xFF) {
+				PC += 2
 			}
 		case 0x4: // 4xkk
 			// SE Vx, byte: Skip next instruction if Vx != kk
-			if V[instruction&0x0F00] != uint8(instruction&0x00FF) {
-				PC++
+			if V[x] != uint8(instruction&0xFF) {
+				PC += 2
 			}
 		case 0x5: // 5xy0
 			// SE Vx, byte: Skip next instruction if Vx = Vy
-			if V[instruction&0x0F00] == V[instruction&0x00F0] {
-				PC++
+			y := instruction & 0xF0 >> 4
+			if V[x] == V[y] {
+				PC += 2
 			}
 		case 0x6: // 6xkk
 			// LD Vx, byte: Set Vx = kk
-			V[instruction&0x0F00] = uint8(instruction & 0xFF)
+			V[x] = uint8(instruction & 0xFF)
 		case 0x7: // 7xkk
-			// ADD Vx, byte: Adds the value kk to the value of register Vx, then stores the result in Vx
-			V[instruction&0x0F00] += uint8(instruction & 0xFF)
+			// ADD Vx, byte: Adds the value kk to the value of
+			// register Vx, then stores the result in Vx
+			V[x] += uint8(instruction & 0xFF)
 		case 0x8:
-			switch instruction & 0x0F {
+			y := instruction & 0xF0 >> 4
+			switch instruction & 0xF {
 			case 0x0: // 8xy0
 				// LD Vx, Vy: Set Vx = Vy
-				V[instruction&0x0F00] = V[instruction&0x00F0]
+				V[x] = V[y]
 			case 0x1: // 8xy1
 				// OR Vx, Vy: Set Vx = Vx OR Vy
-				V[instruction&0x0F00] |= V[instruction&0x00F0]
+				V[x] |= V[y]
 			case 0x2: // 8xy2
 				// AND Vx, Vy: Set Vx = Vx AND Vy
-				V[instruction&0x0F00] &= V[instruction&0x00F0]
+				V[x] &= V[y]
 			case 0x3: // 8xy3
 				// XOR Vx, Vy: Set Vx = Vx XOR Vy
-				V[instruction&0x0F00] ^= V[instruction&0x00F0]
+				V[x] ^= V[y]
 			case 0x4: // 8xy4
 				// ADD Vx, Vy: Set Vx = Vx + Vy, set VF = carry
-				a := V[instruction&0x0F00]
-				V[instruction&0x0F00] += V[instruction&0x00F0]
+				a := V[x]
+				V[x] += V[y]
 				// ((c < a) != (b < 0)) where c := a + b
-				if (V[instruction&0x0F00] < a) != (V[instruction&0x00F0] < 0) {
+				if (V[x] < a) != (V[y] < 0) {
 					V[0xF] = 1
 				}
 			case 0x5: // 8xy5
 				// SUB Vx, Vy: Set Vx = Vx - Vy, set VF = NOT borrow
-				if V[instruction&0x0F00] > V[instruction&0x00F0] {
+				if V[x] > V[y] {
 					V[0xF] = 1
 				}
-				V[instruction&0x0F00] -= V[instruction&0x00F0]
+				V[x] -= V[y]
 			case 0x6: // 8xy6
 				// SHR Vx {, Vy}: Set Vx = Vx SHR 1
-				V[0xF] = V[instruction&0x0F00] & 0x1
-				V[instruction&0x0F00] >>= 1
+				V[0xF] = V[x] & 0x1
+				V[x] >>= 1
 			case 0x7: // 8xy7
 				// SUBN Vx, Vy: Set Vx = Vy - Vx, set VF = NOT borrow
-				if V[instruction&0x00F0] > V[instruction&0x0F00] {
+				if V[y] > V[x] {
 					V[0xF] = 1
 				}
-				V[instruction&0x00F0] -= V[instruction&0x0F00]
+				V[y] -= V[x]
 			case 0x8: // 8xy8
 				// SHL Vx {, Vy}: Set Vx = Vx SHL 1
-				V[0xF] = V[instruction&0x0F00] & 0x80
-				V[instruction&0x0F00] <<= 1
+				V[0xF] = V[x] & 0x80
+				V[x] <<= 1
 			}
 
 		case 0x9: // 9xy0
 			// SNE Vx, Vy: Skip next instruction if Vx != Vy
-			if V[instruction&0x0F00] != V[instruction&0x00F0] {
-				PC++
+			if V[x] != V[instruction&0x00F0] {
+				PC += 2
 			}
 		case 0xA: // Annn
 			// LD I, addr: Set I = nnn
@@ -194,12 +201,11 @@ func chip8() {
 			PC = instruction&0x0FFF + uint16(V[0x0])
 		case 0xC: // Cxkk
 			// RND Vx, byte: Set Vx = random byte AND kk
-			V[instruction&0x0F00] = uint8(rand.Intn(1<<8)) | uint8(instruction&0xFF)
+			V[x] = uint8(rand.Intn(1<<8)) | uint8(instruction&0xFF)
 		case 0xD: // Dxyn
 			// DRW Vx, Vy, nibble: Display n-byte sprite starting
 			// at memory location I at (Vx, Vy), set VF = collision
-			x := instruction & 0x0F00
-			y := instruction & 0x00F0
+			y := instruction & 0x00F0 >> 4
 			nibble := int(instruction & 0x000F)
 			location := I
 			for n := 0; n < nibble; n++ {
@@ -215,17 +221,16 @@ func chip8() {
 			switch instruction & 0xFF {
 			case 0x9E: // Ex9E
 				// SKP Vx: Skip next instruction if key with the value of Vx is pressed
-				if keyboard[instruction&0x0F00] {
-					PC++
+				if keyboard[x] {
+					PC += 2
 				}
 			case 0xA1: // ExA1
 				// SKNP Vx:  Skip next instruction if key with the value of Vx is not pressed
-				if !keyboard[instruction&0x0F00] {
-					PC++
+				if !keyboard[x] {
+					PC += 2
 				}
 			}
 		case 0xF:
-			x := uint8(instruction & 0x0F00)
 			switch instruction & 0xFF {
 			case 0x07: // Fx07
 				// LD Vx, DT: Set Vx = delay timer value
@@ -235,10 +240,10 @@ func chip8() {
 				V[x] = getKeyPress()
 			case 0x15: // Fx15
 				// LD DT, Vx: Set delay timer = Vx
-				DT = x
+				DT = uint8(x)
 			case 0x18: // Fx18
 				// LD ST, Vx: Set sound timer = Vx
-				ST = x
+				ST = uint8(x)
 			case 0x1E: // Fx1E
 				// ADD I, Vx: Set I = I + Vx
 				I += uint16(V[x])
@@ -255,14 +260,14 @@ func chip8() {
 			case 0x55: // Fx55
 				// LD [I], Vx: Store registers V0 through Vx in memory starting at location I
 				location := I
-				for register := uint8(0); register < x; register++ {
+				for register := uint16(0); register < x; register++ {
 					ram[location] = V[register]
 					location++
 				}
 			case 0x65: // Fx65
 				// LD Vx, [I]: Read registers V0 through Vx from memory starting at location I
 				location := I
-				for register := uint8(0); register < x; register++ {
+				for register := uint16(0); register < x; register++ {
 					V[register] = ram[location]
 					location++
 				}
@@ -277,8 +282,9 @@ func chip8() {
 			DT--
 			time.Sleep(1 / 60 * time.Second)
 		}
-		PC++
+		PC += 2
 	}
+	fmt.Println(display)
 }
 
 func main() {
