@@ -82,11 +82,13 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			a := chip8.V[x]
 			chip8.V[x] += chip8.V[y]
 			// ((c < a) != (b < 0)) where c := a + b
+			chip8.V[0xF] = 0
 			if (chip8.V[x] < a) != (chip8.V[y] < 0) {
 				chip8.V[0xF] = 1
 			}
 		case 0x5: // 8xy5
 			// SUB Vx, Vy: Set Vx = Vx - Vy, set VF = NOT borrow
+			chip8.V[0xF] = 0
 			if chip8.V[x] > chip8.V[y] {
 				chip8.V[0xF] = 1
 			}
@@ -97,13 +99,14 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			chip8.V[x] >>= 1
 		case 0x7: // 8xy7
 			// SUBN Vx, Vy: Set Vx = Vy - Vx, set VF = NOT borrow
+			chip8.V[0xF] = 0
 			if chip8.V[y] > chip8.V[x] {
 				chip8.V[0xF] = 1
 			}
 			chip8.V[y] -= chip8.V[x]
 		case 0xE: // 8xyE
 			// SHL Vx {, Vy}: Set Vx = Vx SHL 1
-			chip8.V[0xF] = (chip8.V[x] & 0x80) >> 7
+			chip8.V[0xF] = chip8.V[x] >> 7
 			chip8.V[x] <<= 1
 		default:
 			fmt.Printf("unknown opcode %4X\n", instruction)
@@ -127,36 +130,38 @@ func (chip8 *Chip8) execute(instruction uint16) {
 	case 0xD: // Dxyn
 		// DRW Vx, Vy, nibble: Display n-byte sprite starting
 		// at memory location I at (Vx, Vy), set VF = collision
+		chip8.V[0xF] = 0
 		y := (instruction & 0x00F0) >> 4
 		sprites := uint8(instruction & 0x000F)
 		location := chip8.I
 		shift := 56 - int(chip8.V[x])
 		for n := uint8(0); n < sprites; n++ {
-			if int(chip8.V[y]+n) >= len(chip8.display) {
-				break
-			}
+			line := (chip8.V[y] + n) % uint8(len(chip8.display))
 
-			row := (uint64(chip8.ram[location]) & 0xFF)
+			row := uint64(chip8.ram[location])
 			if shift > 0 {
 				row <<= shift
 			} else {
 				row >>= -shift
 			}
-			if chip8.display[chip8.V[y]+n]&row != 0 {
+
+			if chip8.display[line]&row != 0 {
 				chip8.V[0xF] = 1
 			}
-			chip8.display[chip8.V[y]+n] ^= row
+			chip8.display[line] ^= row
 			location++
 		}
 	case 0xE:
 		switch instruction & 0xFF {
 		case 0x9E: // Ex9E
-			// SKP Vx: Skip next instruction if key with the value of Vx is pressed
+			// SKP Vx: Skip next instruction
+			// if key with the value of Vx is pressed
 			if chip8.isPressed(chip8.V[x]) {
 				chip8.PC += 2
 			}
 		case 0xA1: // ExA1
-			// SKNP Vx:  Skip next instruction if key with the value of Vx is not pressed
+			// SKNP Vx:  Skip next instruction
+			// if key with the value of Vx is not pressed
 			if !chip8.isPressed(chip8.V[x]) {
 				chip8.PC += 2
 			}
@@ -169,14 +174,15 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			// LD Vx, DT: Set Vx = delay timer value
 			chip8.V[x] = chip8.DT
 		case 0x0A: // Fx0A
-			// LD Vx, K: Wait for a key press, store the value of the key in Vx
+			// LD Vx, K: Wait for a key press,
+			// store the value of the key in Vx
 			chip8.V[x] = chip8.getKeyPress()
 		case 0x15: // Fx15
 			// LD DT, Vx: Set delay timer = Vx
-			chip8.DT = uint8(x)
+			chip8.DT = chip8.V[x]
 		case 0x18: // Fx18
 			// LD ST, Vx: Set sound timer = Vx
-			chip8.ST = uint8(x)
+			chip8.ST = chip8.V[x]
 		case 0x1E: // Fx1E
 			// ADD I, Vx: Set I = I + Vx
 			chip8.I += uint16(chip8.V[x])
@@ -215,5 +221,4 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		err := fmt.Errorf("unknown opcode %4X", instruction)
 		panic(err)
 	}
-	chip8.PC += 2
 }

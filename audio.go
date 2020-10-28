@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"math"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/audio"
 )
 
 const (
 	sampleRate = 44100
-	frequency  = 880
+	frequency  = 440
 )
 
 var audioContext = audio.NewContext(sampleRate)
@@ -29,17 +27,10 @@ func createWave(ST uint8) []byte {
 		wave[i+3] = byte(b >> 8)
 		p++
 	}
-	fmt.Println(len(wave))
 	return wave
 }
 
 func playSound(ST uint8) {
 	player := audio.NewPlayerFromBytes(audioContext, createWave(ST))
-	fmt.Println("Playing")
 	player.Play()
-	time.Sleep(2 * time.Second)
 }
-
-// func main() {
-// 	playSound(10)
-// }

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"flag"
 	"image/color"
-	"log"
 
 	"github.com/hajimehoshi/ebiten"
 )
@@ -107,20 +105,4 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return 64 * scale, 32 * scale
 	// return 64, 32
-}
-
-func main() {
-	filename := flag.String("filename", "./roms/Space Invaders [David Winter].ch8", "rom to load")
-	flag.Parse()
-
-	g := &Game{Chip8{}}
-	g.load(*filename)
-
-	go g.run()
-
-	ebiten.SetWindowSize(screenWidth*scale, screenHeight*scale)
-	ebiten.SetWindowTitle("Chip8 Emulator")
-	if err := ebiten.RunGame(g); err != nil {
-		log.Fatal(err)
-	}
 }
