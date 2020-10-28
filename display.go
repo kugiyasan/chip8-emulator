@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"image/color"
 	"log"
-	"os"
-	"time"
 
 	"github.com/hajimehoshi/ebiten"
 )
@@ -23,11 +21,7 @@ func init() {
 }
 
 // Game implements ebiten.Game interface.
-type Game struct {
-	Chip8
-	// display [64][32]bool
-	// display [32]uint64
-}
+type Game struct{ Chip8 }
 
 func rect(x0, y0 float32, offset uint16) ([]ebiten.Vertex, []uint16) {
 	var r, g, b, a float32 = 1, 1, 1, 1
@@ -95,30 +89,6 @@ func rects(x uint64, y int) ([]ebiten.Vertex, []uint16) {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (g *Game) Update() error {
-	// n := rand.Intn(31)
-	// g.display[n] = rand.Uint64()
-
-	instruction := g.getNextInstruction()
-	fmt.Printf("Opcode: %4X PC: %3X\n", instruction, g.PC)
-
-	if instruction == 0x1228 {
-		time.Sleep(5 * time.Second)
-		os.Exit(1)
-	}
-
-	g.execute(instruction)
-	if g.ST > 0 {
-		// buzz
-	} else {
-		// stop buzzing
-	}
-	for g.DT > 0 {
-		g.DT--
-		// time.Sleep(1 / 60 * time.Second)
-	}
-	g.PC += 2
-	fmt.Printf("%3X %X %v %v\n", g.I, g.SP, g.stack, g.V)
-	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
@@ -136,15 +106,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return 64 * scale, 32 * scale
+	// return 64, 32
 }
 
 func main() {
-	game := &Game{Chip8{}}
-	game.load("./roms/IBM Logo.ch8")
+	filename := flag.String("filename", "./roms/Space Invaders [David Winter].ch8", "rom to load")
+	flag.Parse()
+
+	g := &Game{Chip8{}}
+	g.load(*filename)
+
+	go g.run()
+
 	ebiten.SetWindowSize(screenWidth*scale, screenHeight*scale)
 	ebiten.SetWindowTitle("Chip8 Emulator")
-	// ebiten.SetMaxTPS(6)
-	if err := ebiten.RunGame(game); err != nil {
+	if err := ebiten.RunGame(g); err != nil {
 		log.Fatal(err)
 	}
 }

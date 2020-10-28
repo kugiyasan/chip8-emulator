@@ -5,10 +5,6 @@ import (
 	"math/rand"
 )
 
-func getKeyPress() uint8 {
-	return 0xF
-}
-
 func (chip8 *Chip8) execute(instruction uint16) {
 	// x is used a lot in opcodes
 	x := instruction & 0xF00 >> 8
@@ -26,11 +22,14 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			chip8.display = [32]uint64{}
 		case 0x00EE:
 			// RET: Return from a subroutine
-			chip8.PC = chip8.stack[chip8.SP]
 			chip8.SP--
+			chip8.PC = chip8.stack[chip8.SP]
 		default: // 0nnn
 			// SYS addr: Jump to a machine code routine at nnn
 			// It is ignored by modern interpreters
+			fmt.Printf("unknown opcode %4X\n", instruction)
+			// err := fmt.Errorf("unknown opcode %4X", instruction)
+			// panic(err)
 		}
 	case 0x1: // 1nnn
 		// JP addr: The interpreter sets the program counter to nnn
@@ -39,7 +38,7 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		// CALL addr: Call subroutine at nnn
 		chip8.stack[chip8.SP] = chip8.PC
 		chip8.SP++
-		chip8.PC = instruction & 0x0FFF
+		chip8.PC = instruction&0x0FFF - 2
 	case 0x3: // 3xkk
 		// SE Vx, byte: Skip next instruction if Vx = kk
 		if chip8.V[x] == uint8(instruction&0xFF) {
@@ -102,15 +101,18 @@ func (chip8 *Chip8) execute(instruction uint16) {
 				chip8.V[0xF] = 1
 			}
 			chip8.V[y] -= chip8.V[x]
-		case 0x8: // 8xy8
+		case 0xE: // 8xyE
 			// SHL Vx {, Vy}: Set Vx = Vx SHL 1
-			chip8.V[0xF] = chip8.V[x] & 0x80
+			chip8.V[0xF] = (chip8.V[x] & 0x80) >> 7
 			chip8.V[x] <<= 1
+		default:
+			fmt.Printf("unknown opcode %4X\n", instruction)
 		}
 
 	case 0x9: // 9xy0
 		// SNE Vx, Vy: Skip next instruction if Vx != Vy
-		if chip8.V[x] != chip8.V[instruction&0x00F0] {
+		y := instruction & 0x00F0 >> 4
+		if chip8.V[x] != chip8.V[y] {
 			chip8.PC += 2
 		}
 	case 0xA: // Annn
@@ -121,36 +123,45 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		chip8.PC = instruction&0x0FFF + uint16(chip8.V[0x0])
 	case 0xC: // Cxkk
 		// RND Vx, byte: Set Vx = random byte AND kk
-		chip8.V[x] = uint8(rand.Intn(1<<8)) | uint8(instruction&0xFF)
+		chip8.V[x] = uint8(rand.Intn(1<<8)) & uint8(instruction&0xFF)
 	case 0xD: // Dxyn
 		// DRW Vx, Vy, nibble: Display n-byte sprite starting
 		// at memory location I at (Vx, Vy), set VF = collision
-		y := instruction & 0x00F0 >> 4
+		y := (instruction & 0x00F0) >> 4
 		sprites := uint8(instruction & 0x000F)
 		location := chip8.I
-		shift := 56 - chip8.V[x]
+		shift := 56 - int(chip8.V[x])
 		for n := uint8(0); n < sprites; n++ {
-			row := uint64(chip8.ram[location]) & 0xFF << shift
-			fmt.Printf("row: %64b Vx: %4d\n", row, chip8.V[x])
+			if int(chip8.V[y]+n) >= len(chip8.display) {
+				break
+			}
+
+			row := (uint64(chip8.ram[location]) & 0xFF)
+			if shift > 0 {
+				row <<= shift
+			} else {
+				row >>= -shift
+			}
 			if chip8.display[chip8.V[y]+n]&row != 0 {
 				chip8.V[0xF] = 1
 			}
 			chip8.display[chip8.V[y]+n] ^= row
 			location++
 		}
-
 	case 0xE:
 		switch instruction & 0xFF {
 		case 0x9E: // Ex9E
 			// SKP Vx: Skip next instruction if key with the value of Vx is pressed
-			if chip8.keyboard[x] {
+			if chip8.isPressed(chip8.V[x]) {
 				chip8.PC += 2
 			}
 		case 0xA1: // ExA1
 			// SKNP Vx:  Skip next instruction if key with the value of Vx is not pressed
-			if !chip8.keyboard[x] {
+			if !chip8.isPressed(chip8.V[x]) {
 				chip8.PC += 2
 			}
+		default:
+			fmt.Printf("unknown opcode %4X\n", instruction)
 		}
 	case 0xF:
 		switch instruction & 0xFF {
@@ -159,7 +170,7 @@ func (chip8 *Chip8) execute(instruction uint16) {
 			chip8.V[x] = chip8.DT
 		case 0x0A: // Fx0A
 			// LD Vx, K: Wait for a key press, store the value of the key in Vx
-			chip8.V[x] = getKeyPress()
+			chip8.V[x] = chip8.getKeyPress()
 		case 0x15: // Fx15
 			// LD DT, Vx: Set delay timer = Vx
 			chip8.DT = uint8(x)
@@ -172,27 +183,37 @@ func (chip8 *Chip8) execute(instruction uint16) {
 		case 0x29: // Fx29
 			// LD F, Vx: Set I = location of sprite for digit Vx
 			// The sprites will be located at the beginning
-			chip8.I = uint16(5 * x)
+			chip8.I = uint16(5 * chip8.V[x])
 		case 0x33: // Fx33
-			// LD B, Vx: Store BCD representation of Vx in memory locations I, I+1, and I+2
-			BCD := fmt.Sprintf("%d", chip8.V[x])
-			for i := range BCD {
-				chip8.ram[int(chip8.I)+i] = BCD[i]
-			}
+			// LD B, Vx: Store BCD representation of Vx
+			// in memory locations I, I+1, and I+2
+			BCD := chip8.V[x]
+			chip8.ram[int(chip8.I)] = BCD / 100
+			chip8.ram[int(chip8.I)+1] = BCD / 10 % 10
+			chip8.ram[int(chip8.I)+2] = BCD % 10
 		case 0x55: // Fx55
-			// LD [I], Vx: Store registers V0 through Vx in memory starting at location I
+			// LD [I], Vx: Store registers V0 through Vx
+			// in memory starting at location I
 			location := chip8.I
 			for register := uint16(0); register < x; register++ {
 				chip8.ram[location] = chip8.V[register]
 				location++
 			}
 		case 0x65: // Fx65
-			// LD Vx, [I]: Read registers V0 through Vx from memory starting at location I
+			// LD Vx, [I]: Read registers V0 through Vx
+			// from memory starting at location I
 			location := chip8.I
-			for register := uint16(0); register < x; register++ {
+			for register := uint16(0); register <= x; register++ {
 				chip8.V[register] = chip8.ram[location]
 				location++
 			}
+		default:
+			fmt.Printf("unknown opcode %4X\n", instruction)
 		}
+	default:
+		// fmt.Printf("unknown opcode %4X\n", instruction)
+		err := fmt.Errorf("unknown opcode %4X", instruction)
+		panic(err)
 	}
+	chip8.PC += 2
 }
