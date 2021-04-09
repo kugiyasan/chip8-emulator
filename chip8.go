@@ -96,7 +96,7 @@ func (chip8 *Chip8) run() {
 			chip8.ST = 0
 		}
 		instruction := chip8.getNextInstruction()
-		// fmt.Printf("Opcode: %4X PC: %3X\n", instruction, chip8.PC)
+		fmt.Printf("Opcode: %4X PC: %3X\n", instruction, chip8.PC)
 
 		if instruction&0xF000 == 1<<12 && instruction&0x0FFF == chip8.PC {
 			fmt.Println("infinite loop, shutting down the emulator")

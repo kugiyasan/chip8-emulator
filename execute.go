@@ -6,7 +6,7 @@ import (
 )
 
 func (chip8 *Chip8) execute(instruction uint16) {
-	// x is used a lot in opcodes
+	// x is used in a lot in opcodes
 	x := instruction & 0xF00 >> 8
 
 	// nnn or addr - A 12-bit value, the lowest 12 bits of the instruction

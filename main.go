@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	filename := flag.String("filename", "./roms/Pong (alt).ch8", "rom to load")
+	filename := flag.String("file", "./roms/Pong (alt).ch8", "rom to load")
 	flag.Parse()
 
 	g := &Game{Chip8{}}
