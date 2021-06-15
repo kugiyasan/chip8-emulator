@@ -11,7 +11,7 @@ const (
 	frequency  = 440
 )
 
-var audioContext = audio.NewContext(sampleRate)
+var audioContext, audioErr = audio.NewContext(sampleRate)
 
 func createWave(ST uint8) []byte {
 	size := sampleRate * int(ST) / 60
@@ -31,6 +31,8 @@ func createWave(ST uint8) []byte {
 }
 
 func playSound(ST uint8) {
-	player := audio.NewPlayerFromBytes(audioContext, createWave(ST))
-	player.Play()
+	player, err := audio.NewPlayerFromBytes(audioContext, createWave(ST))
+	if err == nil {
+		player.Play()
+	}
 }

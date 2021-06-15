@@ -13,7 +13,7 @@ const (
 )
 
 var scale = 16
-var emptyImage = ebiten.NewImage(scale, scale)
+var emptyImage, displayErr = ebiten.NewImage(scale, scale, ebiten.FilterNearest)
 
 func init() {
 	emptyImage.Fill(color.White)
@@ -87,7 +87,7 @@ func rects(x uint64, y int) ([]ebiten.Vertex, []uint16) {
 
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
-func (g *Game) Update() error {
+func (g *Game) Update(screen *ebiten.Image) error {
 	return nil
 }
 
